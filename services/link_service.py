@@ -1,5 +1,5 @@
 from utils.utils_random import random_alfanum
-
+from utils.link_validation import is_valid_link, convert_link
 
 class LinkService:
     def __init__(self) -> None:
@@ -13,3 +13,9 @@ class LinkService:
 
     def get_real_link(self, link: str) -> str | None:
         return self.short_link_to_real_link.get(link)
+    
+    def check_link(self, link: str) -> bool:
+        return is_valid_link(link)
+    
+    def convert_link(self, link:str) -> str:
+        return convert_link(link)
