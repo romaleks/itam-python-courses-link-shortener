@@ -1,0 +1,29 @@
+services:
+  backend:
+    restart: always
+    environment:
+      # переменные окружения
+      APP_PG__HOST: 'postgres'
+
+    build:
+      # какой image использовать
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      # вывести ли порты в материнскую систему
+      - 8000:8000
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:17.0 # какой image скачать с docket-hub
+    environment:
+      POSTGRES_USER: db_main
+      POSTGRES_PASSWORD: db_main
+      PGUSER: db_main
+      PGPASSWORD: db_main
+      PGDATA: /var/lib/postgresql/data/pgdata
+    # ports:
+    #   - "5432:5432"
+    volumes: # Подключаем _папки_ из материнской системы в дочерную
+      - ".data/pg/:/var/lib/postgresql/data/"
