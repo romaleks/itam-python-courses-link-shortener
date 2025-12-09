@@ -1,7 +1,9 @@
-from fastapi import FastAPI, HTTPException, Response, status
+import time
+from typing import Callable, Awaitable
+from fastapi import FastAPI, HTTPException, Response, Request, status
 from pydantic import BaseModel
+from loguru import logger
 from services.link_service import LinkService
-
 
 def create_app() -> FastAPI:
     app = FastAPI()
@@ -13,9 +15,46 @@ def create_app() -> FastAPI:
     def _service_link_to_real(short_link: str) -> str:
         return f"http://localhost:8000/{short_link}"
 
+    @app.middleware("http")
+    async def add_process_time_header(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        t0 = time.time()
+        
+        response = await call_next(request)
+
+        elapsed_ms = round((time.time() - t0) * 1000, 2)
+        response.headers["X-Latency"] = str(elapsed_ms)
+        logger.debug("{} {} done in {}ms", request.method, request.url, elapsed_ms)
+        
+        return response
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception) -> Response:
+        logger.error(
+            "Unhandled exception: {} {} - {}: {}",
+            request.method,
+            request.url,
+            type(exc).__name__,
+            str(exc),
+            exc_info=True
+        )
+        
+        logger.debug("Request details: method={}, url={}, headers={}, client={}",
+                    request.method, request.url, dict(request.headers), request.client)
+        
+        return Response(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content="Internal server error"
+        )
+
     @app.post("/link")
     def create_link(put_link_request: PutLink) -> PutLink:
-        short_link = short_link_service.create_link(put_link_request.link)
+        right_link = short_link_service.convert_link(put_link_request.link)
+
+        is_valid_link = short_link_service.check_link(right_link)
+        if not is_valid_link:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Link is not valid")
+
+        short_link = short_link_service.create_link(right_link)
         return PutLink(link=_service_link_to_real(short_link))
 
     @app.get("/{link}")
